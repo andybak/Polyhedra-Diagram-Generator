@@ -12,6 +12,8 @@ dot_positions = {
     'vf': [(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)],
     'vf!': [(0.25, -0.2), (0.75, -0.2), (1.2, 0.25), (1.2, 0.75), (0.75, 1.2), (0.25, 1.2), (-0.2, 0.75), (-0.2, 0.25)],
     've': [(0.25, 0), (0.75, 0), (1, 0.25), (1, 0.75), (0.75, 1), (0.25, 1), (0, 0.75), (0, 0.25)],
+    've_e': [(0.25, 0), (0.75, 0), (1, 0.25), (1, 0.75), (0.75, 1), (0.25, 1), (0, 0.75), (0, 0.25)],
+    've_c': [(0.25, 0), (0.75, 0), (1, 0.25), (1, 0.75), (0.75, 1), (0.25, 1), (0, 0.75), (0, 0.25)],
     'fe': [(0.25, 0.5), (0.75, 0.5), (0.5, 0.75), (0.5, 0.25)],
     'fe!': [(-0.2, 0.5), (1.2, 0.5), (0.5, 1.22), (0.5, -0.2)]
 }
@@ -40,7 +42,9 @@ atoms = {
     ('V', 've'): [(0, [0, 7]), (1, [1, 2]), (2, [3, 4]), (3, [5, 6])],
     ('V', 'vf'): [(0, [0]), (1, [1]), (2, [2]), (3, [3])],
     ('fe', 'V'): [(0, [3]), (0, [0]), (1, [2]), (1, [1]), (2, [2]), (2, [3]), (3, [0]), (3, [1])],
-    ('ve', 've'): [(0, [1]), (1, [0, 2]), (2, [1, 3]), (3, [2, 4]), (4, [3, 5]), (5, [4, 6]), (6, [5, 7]), (7, [6, 0])],
+    # ve-ve: split into edge-adjacent (ve_e) and corner-adjacent (ve_c)
+    ('ve_e', 've_e'): [(0, [1]), (1, [0]), (2, [3]), (3, [2]), (4, [5]), (5, [4]), (6, [7]), (7, [6])],
+    ('ve_c', 've_c'): [(0, [7]), (1, [2]), (2, [1]), (3, [4]), (4, [3]), (5, [6]), (6, [5]), (7, [0])],
     ('ve', 'vf'): [(0, [0]), (1, [1]), (2, [1]), (3, [2]), (4, [2]), (5, [3]), (6, [3]), (7, [0])],
     ('fe', 've'): [(0, [6, 7]), (1, [2, 3]), (2, [4, 5]), (3, [0, 1])],
     ('vf', 'vf'): [(0, [1, 3]), (1, [0, 2]), (2, [1, 3]), (3, [0, 2])],
@@ -122,9 +126,18 @@ def collinear_overlap(s1: Segment, s2: Segment) -> bool:
     return overlap > EPSILON
 
 
+def _base_class(cls: str) -> str:
+    """Normalise a point class name to its base class for rank calculation."""
+    cls = cls.rstrip('!')
+    for suffix in ('_e', '_c'):
+        if cls.endswith(suffix):
+            return cls[:-len(suffix)]
+    return cls
+
+
 def combination_rank(combo) -> int:
-    """Number of distinct base point classes in an atom combination (strips ! suffix)."""
-    return len({cls.rstrip('!') for atom in combo for cls in atom})
+    """Number of distinct base point classes in an atom combination."""
+    return len({_base_class(cls) for atom in combo for cls in atom})
 
 
 def connectivity_check(segments: list) -> bool:
@@ -326,8 +339,9 @@ if __name__ == '__main__':
                 else:
                     folder = 'svgs_good'
 
-                svg_filename = f'{folder}/{svg_filename}'
-                os.makedirs(folder, exist_ok=True)
+                class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
+                svg_filename = f'{folder}/{class_subdir}/{svg_filename}'
+                os.makedirs(f'{folder}/{class_subdir}', exist_ok=True)
                 svg = create_svg(all_segments, all_dots, pair_indices)
                 with open(svg_filename, 'w') as file:
                     file.write(svg)
