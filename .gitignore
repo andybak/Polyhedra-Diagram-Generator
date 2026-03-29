@@ -11,3 +11,6 @@ __pycache__/
 .claude/
 
 *.log
+/svgs_low_degree
+/svgs_good
+/svgs_bad
