@@ -270,12 +270,14 @@ def create_data(line_config):
     return segments, points
 
 
+RENDER_MODE = 'debug'  # 'debug' or 'final'
+
 colors = ['red', 'green', 'blue']
 widths = ['0.1', '0.05', '0.025']
 opacities = ['0.3', '0.5', '0.7']
 
 
-def create_svg(all_segs, all_pts, indices):
+def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
     unique_dots = list(set(all_pts))
     padding = 0.1
     page_size = 200
@@ -283,14 +285,18 @@ def create_svg(all_segs, all_pts, indices):
     svg_header = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-{padding} -{padding} {viewbox_size} {viewbox_size}" width="{page_size}" height="{page_size}">'
     svg_content = ""
 
-    for count, seg in enumerate(all_segs):
-        idx = indices[count]
-        color = colors[idx]
-        width = widths[idx]
-        opacity = opacities[idx]
-        svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="{color}" opacity="{opacity}" stroke-width="{width}"/>'
-    for x, y in unique_dots:
-        svg_content += f'<circle cx="{x}" cy="{y}" r="0.05" fill="purple" stroke="black" stroke-width="0.01"/>'
+    if mode == 'final':
+        for seg in all_segs:
+            svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="black" stroke-width="0.02"/>'
+        for x, y in unique_dots:
+            svg_content += f'<circle cx="{x}" cy="{y}" r="0.05" fill="red" stroke="black" stroke-width="0.01"/>'
+    else:
+        for count, seg in enumerate(all_segs):
+            idx = indices[count]
+            svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="{colors[idx]}" opacity="{opacities[idx]}" stroke-width="{widths[idx]}"/>'
+        for x, y in unique_dots:
+            svg_content += f'<circle cx="{x}" cy="{y}" r="0.05" fill="purple" stroke="black" stroke-width="0.01"/>'
+
     svg_footer = '</svg>'
     return f"{svg_header}{svg_content}{svg_footer}"
 
