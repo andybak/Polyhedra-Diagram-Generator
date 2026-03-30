@@ -198,19 +198,21 @@ def has_crossing_or_duplicate(segments: list) -> bool:
     return False
 
 
-def degree_check(segments: list, points: list) -> bool:
-    """Returns True if all interior vertices (F, vf, fe) have degree >= MIN_DEGREE_INTERIOR."""
+def min_interior_degree(segments: list, points: list) -> int:
+    """Returns the minimum degree of any interior point (F, vf, fe), or MIN_DEGREE_INTERIOR if none present."""
     degree = {}
     for seg in segments:
         degree[seg.a] = degree.get(seg.a, 0) + 1
         degree[seg.b] = degree.get(seg.b, 0) + 1
+    interior_pts = [p for p in set(points) if p in interior_positions]
+    if not interior_pts:
+        return MIN_DEGREE_INTERIOR
+    return min(degree.get(p, 0) for p in interior_pts)
 
-    for pt in set(points):
-        if pt not in interior_positions:
-            continue
-        if degree.get(pt, 0) < MIN_DEGREE_INTERIOR:
-            return False
-    return True
+
+def degree_check(segments: list, points: list) -> bool:
+    """Returns True if all interior vertices (F, vf, fe) have degree >= MIN_DEGREE_INTERIOR."""
+    return min_interior_degree(segments, points) >= MIN_DEGREE_INTERIOR
 
 
 # Corner positions — shared by 4 cells, too complex to analyse locally
@@ -238,10 +240,10 @@ def _reflect(pt, edge_idx):
     if edge_idx == 3: return (-x, y)
 
 
-def boundary_check(segments: list, points: list) -> bool:
-    """For each non-corner boundary point (E, ve), simulate the adjacent cell's contribution
-    by reflecting neighbours across the shared edge. If the resulting global degree is still
-    below MIN_DEGREE_INTERIOR, the point is unresolvable."""
+def min_boundary_degree(segments: list, points: list) -> int:
+    """Returns the minimum global degree of any non-corner boundary point (E, ve)
+    after simulating the adjacent cell's contribution via reflection.
+    Returns MIN_DEGREE_INTERIOR if no such points exist."""
     degree = {}
     incident = {}
     for seg in segments:
@@ -249,20 +251,20 @@ def boundary_check(segments: list, points: list) -> bool:
             degree[pt] = degree.get(pt, 0) + 1
             incident.setdefault(pt, set()).add(other)
 
+    min_deg = MIN_DEGREE_INTERIOR
     for pt in set(points):
         local_deg = degree.get(pt, 0)
         if local_deg >= MIN_DEGREE_INTERIOR:
             continue
         edge_idx = _boundary_edge(pt)
         if edge_idx is None:
-            continue  # corner, interior, or outside — not handled here
+            continue
         neighbors = frozenset(incident.get(pt, set()))
         reflected = frozenset(_reflect(n, edge_idx) for n in neighbors)
         new_connections = reflected - neighbors - {pt}
         global_deg = local_deg + len(new_connections)
-        if global_deg < MIN_DEGREE_INTERIOR:
-            return False
-    return True
+        min_deg = min(min_deg, global_deg)
+    return min_deg
 
 
 def create_data(line_config):
@@ -389,16 +391,18 @@ if __name__ == '__main__':
                 if readable_name.endswith(','): readable_name = readable_name[:-1]
                 svg_filename = f'{readable_name}.svg'
 
+                min_deg = min(min_interior_degree(all_segments, all_dots),
+                             min_boundary_degree(all_segments, all_dots))
                 if has_crossing_or_duplicate(all_segments):
-                    quality = 'bad'
-                elif not degree_check(all_segments, all_dots):
+                    quality = 'crossing_or_duplicate'
+                elif min_deg <= 1:
                     quality = 'low_degree'
-                elif not boundary_check(all_segments, all_dots):
-                    quality = 'bad_boundary'
                 elif not connectivity_check(all_segments):
                     quality = 'bad_connectivity'
                 elif not adjacent_face_check(all_segments, all_dots):
                     quality = 'no_adjacent_face'
+                elif min_deg == 2:
+                    quality = 'degree2'
                 else:
                     quality = 'good'
 
