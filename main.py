@@ -24,8 +24,7 @@ dot_positions = {
 
 # Interior point classes require degree >= MIN_DEGREE_INTERIOR unless a continuation edge is present
 MIN_DEGREE_INTERIOR = 3
-RANKS = [1, 2, 3]
-RANKS = [3]
+RANKS = [1, 2]
 interior_point_classes = {'F', 'vf', 'fe'}
 interior_positions = set(
     p for cls in interior_point_classes for p in dot_positions[cls]
