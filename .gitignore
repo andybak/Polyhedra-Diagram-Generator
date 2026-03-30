@@ -11,3 +11,6 @@ __pycache__/
 .claude/
 
 *.log
+/Rank 1
+/Rank 2
+/Rank 3

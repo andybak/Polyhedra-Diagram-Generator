@@ -24,7 +24,7 @@ dot_positions = {
 
 # Interior point classes require degree >= MIN_DEGREE_INTERIOR unless a continuation edge is present
 MIN_DEGREE_INTERIOR = 3
-RANKS = [1, 2]
+RANKS = [1, 2, 3]
 interior_point_classes = {'F', 'vf', 'fe'}
 interior_positions = set(
     p for cls in interior_point_classes for p in dot_positions[cls]
@@ -361,9 +361,10 @@ if __name__ == '__main__':
 
                 class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
                 subpath = f'{quality}/{class_subdir}/{readable_name}'
-                os.makedirs(f'svgs/{quality}/{class_subdir}', exist_ok=True)
-                os.makedirs(f'pngs/{quality}/{class_subdir}', exist_ok=True)
+                rank_subdir = f'Rank {target_rank}'
+                os.makedirs(f'{rank_subdir}/svgs/{quality}/{class_subdir}', exist_ok=True)
+                os.makedirs(f'{rank_subdir}/pngs/{quality}/{class_subdir}', exist_ok=True)
                 svg = create_svg(all_segments, all_dots, pair_indices)
-                with open(f'svgs/{subpath}.svg', 'w') as file:
+                with open(f'{rank_subdir}/svgs/{subpath}.svg', 'w') as file:
                     file.write(svg)
-                svg_to_png(f'svgs/{subpath}.svg', f'pngs/{subpath}.png')
+                svg_to_png(f'{rank_subdir}/svgs/{subpath}.svg', f'{rank_subdir}/pngs/{subpath}.png')
