@@ -1,8 +1,12 @@
 import os
+import sys
 import subprocess
 import platform
 import itertools
 from dataclasses import dataclass
+sys.modules['cairocffi'] = None  # force svglib/reportlab to use pycairo instead of cairocffi
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
 
 dot_positions = {
     'V': [(0, 0), (1, 0), (1, 1), (0, 1)],
@@ -20,6 +24,8 @@ dot_positions = {
 
 # Interior point classes require degree >= MIN_DEGREE_INTERIOR unless a continuation edge is present
 MIN_DEGREE_INTERIOR = 3
+RANKS = [1, 2, 3]
+RANKS = [3]
 interior_point_classes = {'F', 'vf', 'fe'}
 interior_positions = set(
     p for cls in interior_point_classes for p in dot_positions[cls]
@@ -270,7 +276,11 @@ def create_data(line_config):
     return segments, points
 
 
-RENDER_MODE = 'debug'  # 'debug' or 'final'
+RENDER_MODE = 'final'  # 'debug' or 'final'
+
+LINE_WIDTH = 0.04
+DOT_RADIUS = 0.075
+DOT_OUTLINE_WIDTH = 0.015
 
 colors = ['red', 'green', 'blue']
 widths = ['0.1', '0.05', '0.025']
@@ -279,17 +289,17 @@ opacities = ['0.3', '0.5', '0.7']
 
 def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
     unique_dots = list(set(all_pts))
-    padding = 0.1
+    padding = 0.25
     page_size = 200
-    viewbox_size = 2 + 2 * padding
+    viewbox_size = 1 + 2 * padding
     svg_header = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-{padding} -{padding} {viewbox_size} {viewbox_size}" width="{page_size}" height="{page_size}">'
     svg_content = ""
 
     if mode == 'final':
         for seg in all_segs:
-            svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="black" stroke-width="0.02"/>'
+            svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="black" stroke-width="{LINE_WIDTH}"/>'
         for x, y in unique_dots:
-            svg_content += f'<circle cx="{x}" cy="{y}" r="0.05" fill="red" stroke="black" stroke-width="0.01"/>'
+            svg_content += f'<circle cx="{x}" cy="{y}" r="{DOT_RADIUS}" fill="red" stroke="black" stroke-width="{DOT_OUTLINE_WIDTH}"/>'
     else:
         for count, seg in enumerate(all_segs):
             idx = indices[count]
@@ -299,6 +309,11 @@ def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
 
     svg_footer = '</svg>'
     return f"{svg_header}{svg_content}{svg_footer}"
+
+
+def svg_to_png(svg_path: str, png_path: str):
+    """Rasterize an SVG file to PNG using svglib + pycairo."""
+    renderPM.drawToFile(svg2rlg(svg_path), png_path, fmt='PNG')
 
 
 def open_svg(filename):
@@ -311,7 +326,7 @@ def open_svg(filename):
 
 if __name__ == '__main__':
     seen_combos = set()
-    for target_rank in range(1, 3):
+    for target_rank in RANKS:
         for n_atoms in range(1, 4):
             for combo in itertools.combinations(atoms.keys(), r=n_atoms):
                 if combination_rank(combo) != target_rank:
@@ -339,15 +354,17 @@ if __name__ == '__main__':
                 svg_filename = f'{readable_name}.svg'
 
                 if has_crossing_or_duplicate(all_segments):
-                    folder = 'svgs_bad'
+                    quality = 'bad'
                 elif not degree_check(all_segments, all_dots) or not boundary_check(all_segments, all_dots) or not connectivity_check(all_segments):
-                    folder = 'svgs_low_degree'
+                    quality = 'low_degree'
                 else:
-                    folder = 'svgs_good'
+                    quality = 'good'
 
                 class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
-                svg_filename = f'{folder}/{class_subdir}/{svg_filename}'
-                os.makedirs(f'{folder}/{class_subdir}', exist_ok=True)
+                subpath = f'{quality}/{class_subdir}/{readable_name}'
+                os.makedirs(f'svgs/{quality}/{class_subdir}', exist_ok=True)
+                os.makedirs(f'pngs/{quality}/{class_subdir}', exist_ok=True)
                 svg = create_svg(all_segments, all_dots, pair_indices)
-                with open(svg_filename, 'w') as file:
+                with open(f'svgs/{subpath}.svg', 'w') as file:
                     file.write(svg)
+                svg_to_png(f'svgs/{subpath}.svg', f'pngs/{subpath}.png')
