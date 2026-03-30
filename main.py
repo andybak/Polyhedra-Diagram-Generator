@@ -165,6 +165,30 @@ def connectivity_check(segments: list) -> bool:
     return visited == set(nodes)
 
 
+_boundary_point_positions = (
+    set(map(tuple, dot_positions['V'])) |
+    set(map(tuple, dot_positions['E'])) |
+    set(map(tuple, dot_positions['ve'])) |
+    set(map(tuple, dot_positions['ve_e'])) |
+    set(map(tuple, dot_positions['ve_c']))
+)
+_outside_positions = (
+    set(map(tuple, dot_positions['F!'])) |
+    set(map(tuple, dot_positions['vf!'])) |
+    set(map(tuple, dot_positions['fe!']))
+)
+
+
+def adjacent_face_check(segments: list, points: list) -> bool:
+    """Returns True if the operator connects to adjacent faces — either via
+    boundary points (V, E, ve) or via continuation segments to outside (!) points."""
+    if any(p in _boundary_point_positions for p in set(points)):
+        return True
+    if any(seg.a in _outside_positions or seg.b in _outside_positions for seg in segments):
+        return True
+    return False
+
+
 def has_crossing_or_duplicate(segments: list) -> bool:
     """Returns True if any two segments cross or are duplicates."""
     for i in range(len(segments)):
@@ -324,9 +348,22 @@ def open_svg(filename):
 
 
 if __name__ == '__main__':
+    # For each target rank, the max useful atoms is the largest number of atoms
+    # whose base classes are all subsets of some rank-R base class set.
+    def max_atoms_for_rank(rank):
+        from itertools import combinations as _combinations
+        base_classes = list({_base_class(cls) for a in atoms for cls in a if not cls.endswith('!')})
+        best = 0
+        for class_set in _combinations(base_classes, rank):
+            class_set = frozenset(class_set)
+            count = sum(1 for a in atoms if {_base_class(c) for c in a} <= class_set)
+            best = max(best, count)
+        return best
+
     seen_combos = set()
     for target_rank in RANKS:
-        for n_atoms in range(1, 4):
+        max_atoms = max_atoms_for_rank(target_rank)
+        for n_atoms in range(1, max_atoms + 1):
             for combo in itertools.combinations(atoms.keys(), r=n_atoms):
                 if combination_rank(combo) != target_rank:
                     continue
@@ -354,8 +391,14 @@ if __name__ == '__main__':
 
                 if has_crossing_or_duplicate(all_segments):
                     quality = 'bad'
-                elif not degree_check(all_segments, all_dots) or not boundary_check(all_segments, all_dots) or not connectivity_check(all_segments):
+                elif not degree_check(all_segments, all_dots):
                     quality = 'low_degree'
+                elif not boundary_check(all_segments, all_dots):
+                    quality = 'bad_boundary'
+                elif not connectivity_check(all_segments):
+                    quality = 'bad_connectivity'
+                elif not adjacent_face_check(all_segments, all_dots):
+                    quality = 'no_adjacent_face'
                 else:
                     quality = 'good'
 
