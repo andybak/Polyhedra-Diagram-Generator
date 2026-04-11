@@ -109,7 +109,13 @@ def segments_intersect(s1: Segment, s2: Segment) -> bool:
     t = ((p3[0] - p1[0]) * d2y - (p3[1] - p1[1]) * d2x) / denom
     u = ((p3[0] - p1[0]) * d1y - (p3[1] - p1[1]) * d1x) / denom
 
-    return EPSILON < t < 1 - EPSILON and EPSILON < u < 1 - EPSILON
+    t_in = EPSILON < t < 1 - EPSILON
+    u_in = EPSILON < u < 1 - EPSILON
+    # Also flag T-intersections: endpoint of one segment lying strictly inside the other.
+    # (Proper shared-endpoint touching has t≈0/1 AND u≈0/1, so neither _in is True.)
+    u_end = abs(u) < EPSILON or abs(u - 1) < EPSILON
+    t_end = abs(t) < EPSILON or abs(t - 1) < EPSILON
+    return (t_in and (u_in or u_end)) or (u_in and t_end)
 
 
 def collinear_overlap(s1: Segment, s2: Segment) -> bool:
