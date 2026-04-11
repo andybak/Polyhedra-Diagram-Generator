@@ -1,3 +1,4 @@
+import csv
 import os
 import sys
 import subprocess
@@ -363,55 +364,61 @@ if __name__ == '__main__':
         return best
 
     seen_combos = set()
-    for target_rank in RANKS:
-        max_atoms = max_atoms_for_rank(target_rank)
-        for n_atoms in range(1, max_atoms + 1):
-            for combo in itertools.combinations(atoms.keys(), r=n_atoms):
-                if combination_rank(combo) != target_rank:
-                    continue
-                if combo in seen_combos:
-                    continue
-                seen_combos.add(combo)
+    with open('operators_good.csv', 'w', newline='') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['rank', 'operator'])
 
-                pair = combo
-                all_segments = []
-                pair_indices = []
-                all_dots = []
-                pair_index = 0
+        for target_rank in RANKS:
+            max_atoms = max_atoms_for_rank(target_rank)
+            for n_atoms in range(1, max_atoms + 1):
+                for combo in itertools.combinations(atoms.keys(), r=n_atoms):
+                    if combination_rank(combo) != target_rank:
+                        continue
+                    if combo in seen_combos:
+                        continue
+                    seen_combos.add(combo)
 
-                for atom in pair:
-                    label = '-'.join(atom)
-                    segments, dots = create_data(label)
-                    all_segments += segments
-                    pair_indices += [pair_index] * len(segments)
-                    pair_index += 1
-                    all_dots += dots
+                    pair = combo
+                    all_segments = []
+                    pair_indices = []
+                    all_dots = []
+                    pair_index = 0
 
-                readable_name = str(pair).replace(' ', '').replace('\',\'', '-').replace('(', '').replace(')', '').replace('\'', '')
-                if readable_name.endswith(','): readable_name = readable_name[:-1]
-                svg_filename = f'{readable_name}.svg'
+                    for atom in pair:
+                        label = '-'.join(atom)
+                        segments, dots = create_data(label)
+                        all_segments += segments
+                        pair_indices += [pair_index] * len(segments)
+                        pair_index += 1
+                        all_dots += dots
 
-                min_deg = min(min_interior_degree(all_segments, all_dots),
-                             min_boundary_degree(all_segments, all_dots))
-                if has_crossing_or_duplicate(all_segments):
-                    quality = 'crossing_or_duplicate'
-                elif min_deg <= 1:
-                    quality = 'low_degree'
-                elif not connectivity_check(all_segments):
-                    quality = 'bad_connectivity'
-                elif not adjacent_face_check(all_segments, all_dots):
-                    quality = 'no_adjacent_face'
-                elif min_deg == 2:
-                    quality = 'degree2'
-                else:
-                    quality = 'good'
+                    readable_name = str(pair).replace(' ', '').replace('\',\'', '-').replace('(', '').replace(')', '').replace('\'', '')
+                    if readable_name.endswith(','): readable_name = readable_name[:-1]
 
-                class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
-                subpath = f'{quality}/{class_subdir}/{readable_name}'
-                rank_subdir = f'Rank {target_rank}'
-                os.makedirs(f'{rank_subdir}/svgs/{quality}/{class_subdir}', exist_ok=True)
-                os.makedirs(f'{rank_subdir}/pngs/{quality}/{class_subdir}', exist_ok=True)
-                svg = create_svg(all_segments, all_dots, pair_indices)
-                with open(f'{rank_subdir}/svgs/{subpath}.svg', 'w') as file:
-                    file.write(svg)
-                svg_to_png(f'{rank_subdir}/svgs/{subpath}.svg', f'{rank_subdir}/pngs/{subpath}.png')
+                    min_deg = min(min_interior_degree(all_segments, all_dots),
+                                 min_boundary_degree(all_segments, all_dots))
+                    if has_crossing_or_duplicate(all_segments):
+                        quality = 'crossing_or_duplicate'
+                    elif min_deg <= 1:
+                        quality = 'low_degree'
+                    elif not connectivity_check(all_segments):
+                        quality = 'bad_connectivity'
+                    elif not adjacent_face_check(all_segments, all_dots):
+                        quality = 'no_adjacent_face'
+                    elif min_deg == 2:
+                        quality = 'degree2'
+                    else:
+                        quality = 'good'
+
+                    if quality == 'good':
+                        csv_writer.writerow([target_rank, readable_name])
+
+                    class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
+                    subpath = f'{quality}/{class_subdir}/{readable_name}'
+                    rank_subdir = f'Rank {target_rank}'
+                    os.makedirs(f'{rank_subdir}/svgs/{quality}/{class_subdir}', exist_ok=True)
+                    os.makedirs(f'{rank_subdir}/pngs/{quality}/{class_subdir}', exist_ok=True)
+                    svg = create_svg(all_segments, all_dots, pair_indices)
+                    with open(f'{rank_subdir}/svgs/{subpath}.svg', 'w') as file:
+                        file.write(svg)
+                    svg_to_png(f'{rank_subdir}/svgs/{subpath}.svg', f'{rank_subdir}/pngs/{subpath}.png')
