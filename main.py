@@ -356,7 +356,28 @@ def open_svg(filename):
         subprocess.run(['start', filename], shell=True, check=True)
 
 
+def build_crossing_matrix(output_path='crossing_matrix.csv'):
+    """Write a CSV table: rows and columns are atoms, cells mark crossing_or_duplicate pairs."""
+    atom_keys = list(atoms.keys())
+    atom_labels = ['-'.join(k) for k in atom_keys]
+    atom_segments = [list(create_data('-'.join(k))[0]) for k in atom_keys]
+
+    with open(output_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([''] + atom_labels)
+        for i, segs_a in enumerate(atom_segments):
+            row = [atom_labels[i]]
+            for segs_b in atom_segments:
+                row.append('X' if has_crossing_or_duplicate(segs_a + segs_b) else '')
+            writer.writerow(row)
+
+
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'crossing-matrix':
+        output = sys.argv[2] if len(sys.argv) > 2 else 'crossing_matrix.csv'
+        build_crossing_matrix(output)
+        sys.exit(0)
+
     # For each target rank, the max useful atoms is the largest number of atoms
     # whose base classes are all subsets of some rank-R base class set.
     def max_atoms_for_rank(rank):
