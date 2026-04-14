@@ -38,6 +38,27 @@ def _vf_positions(t):
     return [(vx + t * (fx - vx), vy + t * (fy - vy)) for vx, vy in dot_positions['V']]
 
 
+def _vf_outside_positions(vf_pts):
+    """Compute vf! positions to match given vf positions.
+    Each vf! point tracks the x or y coordinate of the corresponding vf vertex,
+    projected outside the cell boundary."""
+    NEAR, FAR = -0.2, 1.2
+    x0, y0 = vf_pts[0]
+    x1, y1 = vf_pts[1]
+    x2, y2 = vf_pts[2]
+    x3, y3 = vf_pts[3]
+    return [
+        (x0, NEAR),   # below vf[0]
+        (x1, NEAR),   # below vf[1]
+        (FAR,  y1),   # right of vf[1]
+        (FAR,  y2),   # right of vf[2]
+        (x2, FAR),    # above vf[2]
+        (x3, FAR),    # above vf[3]
+        (NEAR, y3),   # left of vf[3]
+        (NEAR, y0),   # left of vf[0]
+    ]
+
+
 def _fe_positions(t):
     """fe positions at parameter t (0.5 = default, 0 = collapsed to F, 1 = at E midpoint).
     Parameterises each fe[i] along the F→fe[i]→E line, preserving index order."""
@@ -309,6 +330,7 @@ def create_data(line_config, vf_pts=None, fe_pts=None):
     pos = dict(dot_positions)
     if vf_pts is not None:
         pos['vf'] = vf_pts
+        pos['vf!'] = _vf_outside_positions(vf_pts)
     if fe_pts is not None:
         pos['fe'] = fe_pts
     line_config = line_config.split(',')
