@@ -33,25 +33,30 @@ interior_positions = set(
 
 
 def _vf_positions(t):
-    """Compute vf point positions for parameter t (0 = at V corner, 1 = at F centre)."""
+    """vf positions at parameter t along V→F (0 = at V corner, 1 = at F centre)."""
     fx, fy = dot_positions['F'][0]
     return [(vx + t * (fx - vx), vy + t * (fy - vy)) for vx, vy in dot_positions['V']]
 
 
-def _effective_interior(vf_pts=None):
-    """Interior position set, updated for a non-default vf placement."""
-    if vf_pts is None:
-        return interior_positions
+def _fe_positions(t):
+    """fe positions at parameter t along F→E (0 = at F centre, 1 = at E midpoint)."""
+    fx, fy = dot_positions['F'][0]
+    return [(fx + t * (ex - fx), fy + t * (ey - fy)) for ex, ey in dot_positions['E']]
+
+
+def _effective_interior(vf_pts=None, fe_pts=None):
+    """Interior position set, updated for non-default vf/fe placements."""
     return (
         set(map(tuple, dot_positions['F'])) |
-        set(map(tuple, vf_pts)) |
-        set(map(tuple, dot_positions['fe']))
+        set(map(tuple, vf_pts if vf_pts is not None else dot_positions['vf'])) |
+        set(map(tuple, fe_pts if fe_pts is not None else dot_positions['fe']))
     )
 
 
-# Three candidate placements tried when checking for crossings:
-# nearer-V (t=1/3), midpoint (t=1/2, current default), nearer-F (t=2/3).
-_VF_T_VALUES = [1/3, 1/2, 2/3]
+# Candidate placements tried for both vf and fe when checking for crossings.
+# vf slides V→F (t=0 at corner, t=1 at centre); fe slides F→E (t=0 at centre, t=1 at edge).
+# Default midpoint (1/2) is tried first so it is used for rendering whenever it is crossing-free.
+_T_VALUES = [1/2, 1/3, 2/3]
 
 
 atoms = {
@@ -227,22 +232,22 @@ def has_crossing_or_duplicate(segments: list) -> bool:
     return False
 
 
-def min_interior_degree(segments: list, points: list, vf_pts=None) -> int:
+def min_interior_degree(segments: list, points: list, vf_pts=None, fe_pts=None) -> int:
     """Returns the minimum degree of any interior point (F, vf, fe), or MIN_DEGREE_INTERIOR if none present."""
     degree = {}
     for seg in segments:
         degree[seg.a] = degree.get(seg.a, 0) + 1
         degree[seg.b] = degree.get(seg.b, 0) + 1
-    eff_interior = _effective_interior(vf_pts)
+    eff_interior = _effective_interior(vf_pts, fe_pts)
     interior_pts = [p for p in set(points) if p in eff_interior]
     if not interior_pts:
         return MIN_DEGREE_INTERIOR
     return min(degree.get(p, 0) for p in interior_pts)
 
 
-def degree_check(segments: list, points: list, vf_pts=None) -> bool:
+def degree_check(segments: list, points: list, vf_pts=None, fe_pts=None) -> bool:
     """Returns True if all interior vertices (F, vf, fe) have degree >= MIN_DEGREE_INTERIOR."""
-    return min_interior_degree(segments, points, vf_pts) >= MIN_DEGREE_INTERIOR
+    return min_interior_degree(segments, points, vf_pts, fe_pts) >= MIN_DEGREE_INTERIOR
 
 
 # Corner positions — shared by 4 cells, too complex to analyse locally
@@ -297,8 +302,12 @@ def min_boundary_degree(segments: list, points: list) -> int:
     return min_deg
 
 
-def create_data(line_config, vf_pts=None):
-    pos = dot_positions if vf_pts is None else {**dot_positions, 'vf': vf_pts}
+def create_data(line_config, vf_pts=None, fe_pts=None):
+    pos = dict(dot_positions)
+    if vf_pts is not None:
+        pos['vf'] = vf_pts
+    if fe_pts is not None:
+        pos['fe'] = fe_pts
     line_config = line_config.split(',')
     points = []
     segments = []
@@ -332,26 +341,28 @@ def create_data(line_config, vf_pts=None):
     return segments, points
 
 
-def _build_combo(combo, vf_pts=None):
-    """Build (segments, dots, pair_indices) for a combo with given vf positions."""
+def _build_combo(combo, vf_pts=None, fe_pts=None):
+    """Build (segments, dots, pair_indices) for a combo with given vf/fe positions."""
     segs, dots, indices = [], [], []
     for idx, atom in enumerate(combo):
-        s, d = create_data('-'.join(atom), vf_pts=vf_pts)
+        s, d = create_data('-'.join(atom), vf_pts=vf_pts, fe_pts=fe_pts)
         segs += s
         dots += d
         indices += [idx] * len(s)
     return segs, dots, indices
 
 
-def _find_valid_vf(combo):
-    """Try each vf placement in turn; return (segments, dots, indices, vf_pts) for the
-    first placement that is crossing-free, or (None, None, None, None) if all fail."""
-    for t in _VF_T_VALUES:
-        vf_pts = _vf_positions(t)
-        segs, dots, indices = _build_combo(combo, vf_pts)
-        if not has_crossing_or_duplicate(segs):
-            return segs, dots, indices, vf_pts
-    return None, None, None, None
+def _find_valid_placement(combo):
+    """Try all (vf_t, fe_t) combinations; return (segments, dots, indices, vf_pts, fe_pts)
+    for the first crossing-free placement, or (None, None, None, None, None) if all fail."""
+    for vf_t in _T_VALUES:
+        for fe_t in _T_VALUES:
+            vf_pts = _vf_positions(vf_t)
+            fe_pts = _fe_positions(fe_t)
+            segs, dots, indices = _build_combo(combo, vf_pts, fe_pts)
+            if not has_crossing_or_duplicate(segs):
+                return segs, dots, indices, vf_pts, fe_pts
+    return None, None, None, None, None
 
 
 RENDER_MODE = 'final'  # 'debug' or 'final'
@@ -415,7 +426,7 @@ def build_crossing_matrix(output_path='crossing_matrix.csv'):
             row = ['-'.join(key_a)]
             for key_b in atom_keys:
                 combo = (key_a, key_b)
-                segs, _, _, _ = _find_valid_vf(combo)
+                segs, _, _, _, _ = _find_valid_placement(combo)
                 row.append('' if segs is not None else 'X')
             writer.writerow(row)
 
@@ -457,14 +468,14 @@ if __name__ == '__main__':
                     readable_name = str(pair).replace(' ', '').replace('\',\'', '-').replace('(', '').replace(')', '').replace('\'', '')
                     if readable_name.endswith(','): readable_name = readable_name[:-1]
 
-                    all_segments, all_dots, pair_indices, vf_pts = _find_valid_vf(pair)
+                    all_segments, all_dots, pair_indices, vf_pts, fe_pts = _find_valid_placement(pair)
                     if all_segments is None:
-                        # All vf placements produced crossings — use default for rendering
+                        # All placements produced crossings — use defaults for rendering
                         all_segments, all_dots, pair_indices = _build_combo(pair)
-                        vf_pts = None
+                        vf_pts = fe_pts = None
                         quality = 'crossing_or_duplicate'
                     else:
-                        min_deg = min(min_interior_degree(all_segments, all_dots, vf_pts),
+                        min_deg = min(min_interior_degree(all_segments, all_dots, vf_pts, fe_pts),
                                      min_boundary_degree(all_segments, all_dots))
                         if min_deg <= 1:
                             quality = 'low_degree'
