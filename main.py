@@ -39,9 +39,12 @@ def _vf_positions(t):
 
 
 def _fe_positions(t):
-    """fe positions at parameter t along F→E (0 = at F centre, 1 = at E midpoint)."""
+    """fe positions at parameter t (0.5 = default, 0 = collapsed to F, 1 = at E midpoint).
+    Parameterises each fe[i] along the F→fe[i]→E line, preserving index order."""
     fx, fy = dot_positions['F'][0]
-    return [(fx + t * (ex - fx), fy + t * (ey - fy)) for ex, ey in dot_positions['E']]
+    # fe[i] sits at t=0.5 by default; scaling by 2t keeps t=0.5 → default positions.
+    return [(fx + 2 * t * (px - fx), fy + 2 * t * (py - fy))
+            for px, py in dot_positions['fe']]
 
 
 def _effective_interior(vf_pts=None, fe_pts=None):
