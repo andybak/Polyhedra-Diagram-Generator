@@ -1,4 +1,5 @@
 import csv
+import math
 import os
 import sys
 import subprocess
@@ -401,6 +402,37 @@ widths = ['0.1', '0.05', '0.025']
 opacities = ['0.3', '0.5', '0.7']
 
 
+def _is_outside_pt(pt):
+    """Returns True if pt is outside the [0,1] cell (adjacent-face stub)."""
+    x, y = pt
+    return x < -0.05 or x > 1.05 or y < -0.05 or y > 1.05
+
+
+def _tapering_line_svg(interior, outside, stroke_width, taper=0.25):
+    """Render a segment as a normal-width line that tapers to a point over the last `taper` fraction."""
+    x1, y1 = interior
+    x2, y2 = outside
+    dx, dy = x2 - x1, y2 - y1
+    length = math.sqrt(dx * dx + dy * dy)
+    if length < 1e-9:
+        return ''
+    px, py = -dy / length, dx / length  # perpendicular unit vector
+    hw = stroke_width / 2
+    # Point where taper begins
+    tx = x1 + (1 - taper) * dx
+    ty = y1 + (1 - taper) * dy
+    # Pentagon: rectangle from interior to taper point, then triangle to outside tip
+    pts = [
+        (x1 + px * hw, y1 + py * hw),
+        (tx + px * hw, ty + py * hw),
+        (x2, y2),
+        (tx - px * hw, ty - py * hw),
+        (x1 - px * hw, y1 - py * hw),
+    ]
+    pts_str = ' '.join(f'{x:.4f},{y:.4f}' for x, y in pts)
+    return f'<polygon points="{pts_str}" fill="black" stroke="none"/>'
+
+
 def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
     unique_dots = list(set(all_pts))
     padding = 0.25
@@ -410,8 +442,16 @@ def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
     svg_content = ""
 
     if mode == 'final':
+        svg_content += f'<rect x="0" y="0" width="1" height="1" fill="none" stroke="#bbb" stroke-width="0.012" stroke-dasharray="0.04 0.025"/>'
         for seg in all_segs:
-            svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="black" stroke-width="{LINE_WIDTH}"/>'
+            a_out = _is_outside_pt(seg.a)
+            b_out = _is_outside_pt(seg.b)
+            if a_out or b_out:
+                interior = seg.b if a_out else seg.a
+                outside = seg.a if a_out else seg.b
+                svg_content += _tapering_line_svg(interior, outside, LINE_WIDTH)
+            else:
+                svg_content += f'<line x1="{seg.a[0]}" y1="{seg.a[1]}" x2="{seg.b[0]}" y2="{seg.b[1]}" stroke="black" stroke-width="{LINE_WIDTH}"/>'
         for x, y in unique_dots:
             svg_content += f'<circle cx="{x}" cy="{y}" r="{DOT_RADIUS}" fill="red" stroke="black" stroke-width="{DOT_OUTLINE_WIDTH}"/>'
     else:
