@@ -478,6 +478,131 @@ def open_svg(filename):
         subprocess.run(['start', filename], shell=True, check=True)
 
 
+OPERATOR_METADATA = {
+    'E-E':                         {'name': 'Ambo'},
+    'F-F!':                        {'name': 'Dual'},
+    'V-V':                         {'name': 'Seed',               'gc_symbol': 'u1 / o1'},
+    'fe-fe,fe-fe!':                {'name': 'Zip'},
+    've0-ve0,ve1-ve1':             {'name': 'Truncate'},
+    'vf-vf,vf-vf!':                {'name': 'Expand'},
+    'E-E,E-F':                     {'conway_symbol': 'dc/ud',      'dual': 'Chamfer'},
+    'F-V':                         {'name': 'Join',                'gc_symbol': 'o1,1'},
+    'E-E,E-V':                     {'name': 'Subdivide',           'gc_symbol': 'u2'},
+    'F-F!,F-V':                    {'name': 'Needle',              'gc_symbol': 'u1,1'},
+    'F-V,V-V':                     {'name': 'Kis'},
+    'E-E,E-fe,fe-fe':              {'conway_symbol': 'dl'},
+    'E-vf,vf-vf':                  {'dual': 'Stake?'},
+    'E-vf,vf-vf!':                 {'dual': 'Stake?',              'concave': '(Y)'},
+    'F-ve,ve0-ve0':                {'concave': 'Y'},
+    'F-vf,vf-vf!':                 {'conway_symbol': 'dqd'},
+    'fe-V,fe-fe':                  {'name': 'Join-Lace'},
+    'fe-V,fe-fe,fe-fe!':           {'name': 'Opposite-Lace'},
+    'V-V,fe-V,fe-fe':              {'name': 'Lace'},
+    'V-ve,ve0-ve0,ve1-ve1':        {'conway_symbol': 'dld'},
+    'V-vf,vf-vf':                  {'name': 'Chamfer'},
+    'V-V,V-vf,vf-vf':              {'name': 'Loft'},
+    've0-ve0,fe-ve,fe-fe':         {'concave': 'Y'},
+    've1-ve1,fe-ve,fe-fe!':        {'concave': 'Y'},
+    'E-F,E-V':                     {'name': 'Ortho',               'gc_symbol': 'o2'},
+    'E-F,E-V,F-V':                 {'name': 'Meta'},
+    'E-F,E-ve,F-ve':               {'name': '(Join-Edge-Medial)',  'concave': 'Y'},
+    'E-V,E-fe,fe-fe':              {'name': 'Quinto'},
+    'E-V,E-fe,fe-V':               {'concave': 'Y'},
+    'E-vf,V-vf':                   {'concave': '(Y)'},
+    'E-vf,V-vf,vf-vf!':            {'concave': '(Y)'},
+    'E-V,E-vf,V-vf':               {'concave': '(Y)'},
+    'E-V,E-vf,vf-vf':              {'name': '(Squall)',            'concave': '(Y)'},
+    'E-ve,E-fe,fe-ve,fe-fe':       {'concave': 'Y'},
+    'E-ve,E-fe,ve1-ve1,fe-ve':     {'concave': 'Y'},
+    'E-vf,E-fe,fe-vf':             {'concave': 'Y'},
+    'F-fe,fe-V':                   {'name': 'Join-Stake'},
+    'F-fe,fe-V,fe-fe!':            {'name': 'Opposite-Stake'},
+    'F-fe,V-V,fe-V':               {'name': 'Stake'},
+    'F-V,F-fe,fe-V':               {'name': 'Join-Kis-Kis'},
+}
+
+
+def _notation_to_file_class(notation):
+    classes = set()
+    for atom in notation.split(','):
+        for part in atom.split('-'):
+            classes.add(_base_class(part))
+    return '.'.join(sorted(classes))
+
+
+def _notation_to_display_class(notation):
+    _VE_NORM = {'ve0': 've', 've1': 've'}
+    classes = set()
+    for atom in notation.split(','):
+        for part in atom.split('-'):
+            base = _base_class(part)
+            classes.add(_VE_NORM.get(base, base))
+    return '.'.join(sorted(classes))
+
+
+def generate_sheet(output_path='operators.xlsx'):
+    from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.styles import Font, Alignment
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Operators'
+
+    headers = ['Rank', 'Class', '# Atoms', 'Diagram', 'Notation',
+               'Conway/Hart Name', 'Conway Symbol', 'Goldberg-Coxeter Symbol', 'Dual', 'Concave Faces?']
+    ws.append(headers)
+    for col, _ in enumerate(headers, 1):
+        ws.cell(1, col).font = Font(bold=True)
+        ws.cell(1, col).alignment = Alignment(horizontal='center', vertical='center')
+
+    col_widths_chars = [8, 12, 10, 18, 32, 22, 16, 26, 16, 14]
+    for i, w in enumerate(col_widths_chars, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    IMG_SIZE = 90
+    IMG_ROW_HEIGHT = 70
+
+    operators = []
+    with open('operators_good.csv', newline='') as f:
+        for row in csv.DictReader(f):
+            operators.append(row)
+
+    for i, op in enumerate(operators):
+        rank = op['rank']
+        notation = op['operator']
+        file_class = _notation_to_file_class(notation)
+        display_class = _notation_to_display_class(notation)
+        n_atoms = len(notation.split(','))
+        row_num = i + 2
+
+        meta = OPERATOR_METADATA.get(notation, {})
+        ws.append([
+            int(rank), display_class, n_atoms, '', notation,
+            meta.get('name', ''), meta.get('conway_symbol', ''),
+            meta.get('gc_symbol', ''), meta.get('dual', ''), meta.get('concave', '')
+        ])
+        for col in range(1, len(headers) + 1):
+            ws.cell(row_num, col).alignment = Alignment(horizontal='center', vertical='center')
+        ws.cell(row_num, 5).alignment = Alignment(horizontal='left', vertical='center')
+
+        png_path = f'Rank {rank}/pngs/good/{file_class}/{notation}.png'
+        if os.path.exists(png_path):
+            img = XLImage(png_path)
+            img.width = IMG_SIZE
+            img.height = IMG_SIZE
+            ws.add_image(img, f'D{row_num}')
+            ws.row_dimensions[row_num].height = IMG_ROW_HEIGHT
+            print(f'  [{i+1}/{len(operators)}] {notation}')
+        else:
+            print(f'  [{i+1}/{len(operators)}] missing PNG: {png_path}')
+
+    ws.freeze_panes = 'A2'
+    wb.save(output_path)
+    print(f'Saved: {output_path}')
+
+
 def build_crossing_matrix(output_path='crossing_matrix.csv'):
     """Write a CSV table: rows and columns are atoms, cells mark pairs that are
     crossing_or_duplicate for ALL tried vf placements (X = always crosses, blank = avoidable)."""
@@ -497,6 +622,10 @@ def build_crossing_matrix(output_path='crossing_matrix.csv'):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'generate-sheet':
+        generate_sheet()
+        sys.exit(0)
+
     if len(sys.argv) > 1 and sys.argv[1] == 'crossing-matrix':
         output = sys.argv[2] if len(sys.argv) > 2 else 'crossing_matrix.csv'
         build_crossing_matrix(output)
