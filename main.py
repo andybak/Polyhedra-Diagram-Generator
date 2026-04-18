@@ -442,7 +442,7 @@ def create_svg(all_segs, all_pts, indices, mode=RENDER_MODE):
     svg_content = ""
 
     if mode == 'final':
-        svg_content += f'<rect x="0" y="0" width="1" height="1" fill="none" stroke="#bbb" stroke-width="0.012" stroke-dasharray="0.04 0.025"/>'
+        svg_content += f'<rect x="0" y="0" width="1" height="1" fill="none" stroke="#bbb" stroke-width="0.048" stroke-dasharray="0.04 0.025"/>'
         for seg in all_segs:
             a_out = _is_outside_pt(seg.a)
             b_out = _is_outside_pt(seg.b)
@@ -540,11 +540,14 @@ def _notation_to_display_class(notation):
     return '.'.join(sorted(classes))
 
 
-def generate_sheet(output_path='operators.xlsx'):
+def generate_sheet(quality='good', output_path=None):
     from openpyxl import Workbook
     from openpyxl.drawing.image import Image as XLImage
     from openpyxl.styles import Font, Alignment
     from openpyxl.utils import get_column_letter
+
+    if output_path is None:
+        output_path = f'operators_{quality}.xlsx'
 
     wb = Workbook()
     ws = wb.active
@@ -564,8 +567,9 @@ def generate_sheet(output_path='operators.xlsx'):
     IMG_SIZE = 90
     IMG_ROW_HEIGHT = 70
 
+    csv_path = f'operators_{quality}.csv'
     operators = []
-    with open('operators_good.csv', newline='') as f:
+    with open(csv_path, newline='') as f:
         for row in csv.DictReader(f):
             operators.append(row)
 
@@ -587,7 +591,7 @@ def generate_sheet(output_path='operators.xlsx'):
             ws.cell(row_num, col).alignment = Alignment(horizontal='center', vertical='center')
         ws.cell(row_num, 5).alignment = Alignment(horizontal='left', vertical='center')
 
-        png_path = f'Rank {rank}/pngs/good/{file_class}/{notation}.png'
+        png_path = f'Rank {rank}/pngs/{quality}/{file_class}/{notation}.png'
         if os.path.exists(png_path):
             img = XLImage(png_path)
             img.width = IMG_SIZE
@@ -623,7 +627,8 @@ def build_crossing_matrix(output_path='crossing_matrix.csv'):
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'generate-sheet':
-        generate_sheet()
+        q = sys.argv[2] if len(sys.argv) > 2 else 'good'
+        generate_sheet(quality=q)
         sys.exit(0)
 
     if len(sys.argv) > 1 and sys.argv[1] == 'crossing-matrix':
@@ -643,11 +648,15 @@ if __name__ == '__main__':
             best = max(best, count)
         return best
 
-    seen_combos = set()
-    with open('operators_good.csv', 'w', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['rank', 'operator'])
+    ALL_QUALITIES = ['good', 'degree2', 'no_adjacent_face', 'bad_connectivity', 'low_degree', 'crossing_or_duplicate']
 
+    seen_combos = set()
+    csv_files = {q: open(f'operators_{q}.csv', 'w', newline='') for q in ALL_QUALITIES}
+    csv_writers = {q: csv.writer(f) for q, f in csv_files.items()}
+    for writer in csv_writers.values():
+        writer.writerow(['rank', 'operator'])
+
+    try:
         for target_rank in RANKS:
             max_atoms = max_atoms_for_rank(target_rank)
             for n_atoms in range(1, max_atoms + 1):
@@ -682,8 +691,7 @@ if __name__ == '__main__':
                         else:
                             quality = 'good'
 
-                    if quality == 'good':
-                        csv_writer.writerow([target_rank, readable_name])
+                    csv_writers[quality].writerow([target_rank, readable_name])
 
                     class_subdir = '.'.join(sorted({_base_class(cls) for atom in pair for cls in atom}))
                     subpath = f'{quality}/{class_subdir}/{readable_name}'
@@ -694,3 +702,6 @@ if __name__ == '__main__':
                     with open(f'{rank_subdir}/svgs/{subpath}.svg', 'w') as file:
                         file.write(svg)
                     svg_to_png(f'{rank_subdir}/svgs/{subpath}.svg', f'{rank_subdir}/pngs/{subpath}.png')
+    finally:
+        for f in csv_files.values():
+            f.close()
