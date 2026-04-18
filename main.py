@@ -27,6 +27,7 @@ dot_positions = {
 # Interior point classes require degree >= MIN_DEGREE_INTERIOR unless a continuation edge is present
 MIN_DEGREE_INTERIOR = 3
 RANKS = [1, 2, 3]
+ALL_QUALITIES = ['good', 'degree2', 'no_adjacent_face', 'bad_connectivity', 'low_degree', 'crossing_or_duplicate']
 interior_point_classes = {'F', 'vf', 'fe'}
 interior_positions = set(
     p for cls in interior_point_classes for p in dot_positions[cls]
@@ -479,46 +480,50 @@ def open_svg(filename):
 
 
 OPERATOR_METADATA = {
-    'E-E':                         {'name': 'Ambo'},
-    'F-F!':                        {'name': 'Dual'},
-    'V-V':                         {'name': 'Seed',               'gc_symbol': 'u1 / o1'},
-    'fe-fe,fe-fe!':                {'name': 'Zip'},
-    've0-ve0,ve1-ve1':             {'name': 'Truncate'},
-    'vf-vf,vf-vf!':                {'name': 'Expand'},
-    'E-E,E-F':                     {'conway_symbol': 'dc/ud',      'dual': 'Chamfer'},
-    'F-V':                         {'name': 'Join',                'gc_symbol': 'o1,1'},
-    'E-E,E-V':                     {'name': 'Subdivide',           'gc_symbol': 'u2'},
-    'F-F!,F-V':                    {'name': 'Needle',              'gc_symbol': 'u1,1'},
-    'F-V,V-V':                     {'name': 'Kis'},
+    'E-E':                         {'name': 'Ambo',               'conway_symbol': 'a',     'dual': 'Join'},
+    'F-F!':                        {'name': 'Dual',               'conway_symbol': 'd',     'dual': 'Seed'},
+    'V-V':                         {'name': 'Seed',               'conway_symbol': 'S',     'gc_symbol': 'u1 / o1',  'dual': 'Dual'},
+    'vf-vf,vf-vf!':               {'name': 'Expand',             'conway_symbol': 'e',     'dual': 'Ortho'},
+    'fe-fe,fe-fe!':               {'name': 'Zip',                'conway_symbol': 'z',     'dual': 'Kis'},
+    'F-V':                         {'name': 'Join',               'conway_symbol': 'j',     'gc_symbol': 'o1,1',     'dual': 'Ambo'},
+    'E-E,E-F':                     {'conway_symbol': 'dc/ud',     'dual': 'Chamfer'},
+    'E-E,E-V':                     {'name': 'Subdivide',          'conway_symbol': 'u',     'gc_symbol': 'u2',       'dual': 'F-vf,vf-vf!'},
+    'E-vf,vf-vf':                  {'conway_symbol': 'dK0',       'dual': 'Join-Stake'},
+    'E-vf,vf-vf!':                 {'dual': 'F-ve,V-ve',          'concave': '(Y)'},
+    'F-F!,F-V':                    {'name': 'Needle',             'conway_symbol': 'n',     'gc_symbol': 'u1,1',     'dual': 'Truncate'},
+    'F-V,V-V':                     {'name': 'Kis',                'conway_symbol': 'k',     'dual': 'Zip'},
+    'F-vf,vf-vf!':                 {'conway_symbol': 'dqd',       'dual': 'Subdivide'},
+    'V-vf,vf-vf':                  {'name': 'Chamfer',            'conway_symbol': 'c',     'dual': 'E-E,E-F'},
+    'fe-V,fe-fe':                  {'name': 'Join-Lace',          'conway_symbol': 'L0',    'dual': 'E-vf,F-vf'},
+    'fe-V,fe-fe!':                 {'dual': 'F-ve,ve0-ve0'},
+    've0-ve0,ve1-ve1':             {'name': 'Truncate',           'conway_symbol': 't',     'dual': 'Needle'},
     'E-E,E-fe,fe-fe':              {'conway_symbol': 'dl'},
-    'E-vf,vf-vf':                  {'dual': 'Stake?'},
-    'E-vf,vf-vf!':                 {'dual': 'Stake?',              'concave': '(Y)'},
-    'F-ve,ve0-ve0':                {'concave': 'Y'},
-    'F-vf,vf-vf!':                 {'conway_symbol': 'dqd'},
-    'fe-V,fe-fe':                  {'name': 'Join-Lace'},
-    'fe-V,fe-fe,fe-fe!':           {'name': 'Opposite-Lace'},
-    'V-V,fe-V,fe-fe':              {'name': 'Lace'},
-    'V-ve,ve0-ve0,ve1-ve1':        {'conway_symbol': 'dld'},
-    'V-vf,vf-vf':                  {'name': 'Chamfer'},
-    'V-V,V-vf,vf-vf':              {'name': 'Loft'},
-    've0-ve0,fe-ve,fe-fe':         {'concave': 'Y'},
-    've1-ve1,fe-ve,fe-fe!':        {'concave': 'Y'},
-    'E-F,E-V':                     {'name': 'Ortho',               'gc_symbol': 'o2'},
-    'E-F,E-V,F-V':                 {'name': 'Meta'},
-    'E-F,E-ve,F-ve':               {'name': '(Join-Edge-Medial)',  'concave': 'Y'},
-    'E-V,E-fe,fe-fe':              {'name': 'Quinto'},
-    'E-V,E-fe,fe-V':               {'concave': 'Y'},
-    'E-vf,V-vf':                   {'concave': '(Y)'},
-    'E-vf,V-vf,vf-vf!':            {'concave': '(Y)'},
-    'E-V,E-vf,V-vf':               {'concave': '(Y)'},
-    'E-V,E-vf,vf-vf':              {'name': '(Squall)',            'concave': '(Y)'},
-    'E-ve,E-fe,fe-ve,fe-fe':       {'concave': 'Y'},
-    'E-ve,E-fe,ve1-ve1,fe-ve':     {'concave': 'Y'},
-    'E-vf,E-fe,fe-vf':             {'concave': 'Y'},
-    'F-fe,fe-V':                   {'name': 'Join-Stake'},
-    'F-fe,fe-V,fe-fe!':            {'name': 'Opposite-Stake'},
-    'F-fe,V-V,fe-V':               {'name': 'Stake'},
-    'F-V,F-fe,fe-V':               {'name': 'Join-Kis-Kis'},
+    'E-F,E-V':                     {'name': 'Ortho',              'conway_symbol': 'o',     'gc_symbol': 'o2',       'dual': 'Expand'},
+    'E-vf,F-vf':                   {'dual': 'Join-Lace'},
+    'E-vf,V-vf':                   {'dual': 'F-ve,ve1-ve1',       'concave': '(Y)'},
+    'F-ve,V-ve':                   {'dual': 'E-vf,vf-vf!'},
+    'F-ve,ve0-ve0':                {'dual': 'fe-V,fe-fe!',        'concave': 'Y'},
+    'F-ve,ve1-ve1':                {'dual': 'E-vf,V-vf'},
+    'F-fe,fe-V':                   {'name': 'Join-Stake',         'conway_symbol': 'K0',    'dual': 'E-vf,vf-vf'},
+    'E-F,E-V,F-V':                 {'name': 'Meta',               'dual': 'Bevel'},
+    'E-F,E-ve,F-ve':               {'name': '(Join-Edge-Medial)', 'concave': 'Y'},
+    'E-V,E-vf,V-vf':              {'concave': '(Y)'},
+    'E-V,E-vf,vf-vf':             {'name': '(Squall)',            'concave': '(Y)'},
+    'E-V,E-fe,fe-V':              {'concave': 'Y'},
+    'E-V,E-fe,fe-fe':             {'name': 'Quinto'},
+    'E-vf,E-fe,fe-vf':            {'concave': 'Y'},
+    'F-fe,fe-V,fe-fe!':           {'name': 'Opposite-Stake'},
+    'F-fe,V-V,fe-V':              {'name': 'Stake'},
+    'F-V,F-fe,fe-V':              {'name': 'Join-Kis-Kis'},
+    'V-V,V-vf,vf-vf':             {'name': 'Loft'},
+    'V-V,fe-V,fe-fe':             {'name': 'Lace'},
+    'fe-V,fe-fe,fe-fe!':          {'name': 'Opposite-Lace'},
+    'E-vf,V-vf,vf-vf!':           {'concave': '(Y)'},
+    'V-ve,ve0-ve0,ve1-ve1':       {'conway_symbol': 'dld'},
+    've0-ve0,fe-ve,fe-fe':        {'concave': 'Y'},
+    've1-ve1,fe-ve,fe-fe!':       {'concave': 'Y'},
+    'E-ve,E-fe,fe-ve,fe-fe':      {'concave': 'Y'},
+    'E-ve,E-fe,ve1-ve1,fe-ve':    {'concave': 'Y'},
 }
 
 
@@ -540,6 +545,21 @@ def _notation_to_display_class(notation):
     return '.'.join(sorted(classes))
 
 
+_COMPOSITE_CLASSES = {'ve', 'vf', 'fe'}
+
+
+def _notation_to_point_class_info(notation):
+    """Returns (num_point_classes, max_point_class, point_classes_str).
+    max_point_class is 2 if any composite class (ve/vf/fe) is present, else 1."""
+    _VE_NORM = {'ve0': 've', 've1': 've'}
+    classes = set()
+    for atom in notation.split(','):
+        for part in atom.split('-'):
+            base = _base_class(part)
+            classes.add(_VE_NORM.get(base, base))
+    return len(classes), (2 if classes & _COMPOSITE_CLASSES else 1), '.'.join(sorted(classes))
+
+
 def generate_sheet(quality='good', output_path=None):
     from openpyxl import Workbook
     from openpyxl.drawing.image import Image as XLImage
@@ -553,14 +573,14 @@ def generate_sheet(quality='good', output_path=None):
     ws = wb.active
     ws.title = 'Operators'
 
-    headers = ['Rank', 'Class', '# Atoms', 'Diagram', 'Notation',
-               'Conway/Hart Name', 'Conway Symbol', 'Goldberg-Coxeter Symbol', 'Dual', 'Concave Faces?']
+    headers = ['Num Point Classes', 'Max Point Class', 'Point Classes', '# Atoms', 'Diagram', 'Notation',
+               'Conway/Hart Name', 'Conway Symbol', 'Goldberg-Coxeter Symbol', 'Dual']
     ws.append(headers)
     for col, _ in enumerate(headers, 1):
         ws.cell(1, col).font = Font(bold=True)
         ws.cell(1, col).alignment = Alignment(horizontal='center', vertical='center')
 
-    col_widths_chars = [8, 12, 10, 18, 32, 22, 16, 26, 16, 14]
+    col_widths_chars = [6, 6, 18, 8, 18, 32, 22, 16, 26, 20]
     for i, w in enumerate(col_widths_chars, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -577,19 +597,19 @@ def generate_sheet(quality='good', output_path=None):
         rank = op['rank']
         notation = op['operator']
         file_class = _notation_to_file_class(notation)
-        display_class = _notation_to_display_class(notation)
+        num_classes, max_class, class_str = _notation_to_point_class_info(notation)
         n_atoms = len(notation.split(','))
         row_num = i + 2
 
         meta = OPERATOR_METADATA.get(notation, {})
         ws.append([
-            int(rank), display_class, n_atoms, '', notation,
+            num_classes, max_class, class_str, n_atoms, '', notation,
             meta.get('name', ''), meta.get('conway_symbol', ''),
-            meta.get('gc_symbol', ''), meta.get('dual', ''), meta.get('concave', '')
+            meta.get('gc_symbol', ''), meta.get('dual', '')
         ])
         for col in range(1, len(headers) + 1):
             ws.cell(row_num, col).alignment = Alignment(horizontal='center', vertical='center')
-        ws.cell(row_num, 5).alignment = Alignment(horizontal='left', vertical='center')
+        ws.cell(row_num, 6).alignment = Alignment(horizontal='left', vertical='center')
 
         png_path = f'Rank {rank}/pngs/{quality}/{file_class}/{notation}.png'
         if os.path.exists(png_path):
@@ -627,8 +647,11 @@ def build_crossing_matrix(output_path='crossing_matrix.csv'):
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'generate-sheet':
-        q = sys.argv[2] if len(sys.argv) > 2 else 'good'
-        generate_sheet(quality=q)
+        if len(sys.argv) > 2:
+            generate_sheet(quality=sys.argv[2])
+        else:
+            for q in ALL_QUALITIES:
+                generate_sheet(quality=q)
         sys.exit(0)
 
     if len(sys.argv) > 1 and sys.argv[1] == 'crossing-matrix':
@@ -647,8 +670,6 @@ if __name__ == '__main__':
             count = sum(1 for a in atoms if {_base_class(c) for c in a} <= class_set)
             best = max(best, count)
         return best
-
-    ALL_QUALITIES = ['good', 'degree2', 'no_adjacent_face', 'bad_connectivity', 'low_degree', 'crossing_or_duplicate']
 
     seen_combos = set()
     csv_files = {q: open(f'operators_{q}.csv', 'w', newline='') for q in ALL_QUALITIES}
